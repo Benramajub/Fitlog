@@ -12,6 +12,7 @@ export declare class NutritionPlan extends BaseEntity {
     member: Member;
     memberId: string;
     activityLevel: ActivityLevel;
+    lbm: number;
     bmr: number;
     tdee: number;
     targetCalories: number;

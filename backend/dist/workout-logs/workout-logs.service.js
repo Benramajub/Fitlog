@@ -20,34 +20,37 @@ const workout_log_entity_1 = require("../database/entities/workout-log.entity");
 const session_entity_1 = require("../database/entities/session.entity");
 const program_entity_1 = require("../database/entities/program.entity");
 let WorkoutLogsService = class WorkoutLogsService {
-    constructor(logRepo, sessionRepo, dayRepo) {
+    constructor(logRepo, sessionRepo, dayRepo, programRepo) {
         this.logRepo = logRepo;
         this.sessionRepo = sessionRepo;
         this.dayRepo = dayRepo;
+        this.programRepo = programRepo;
     }
     async getLogsForSession(sessionId) {
         return this.logRepo.find({
             where: { sessionId },
-            order: { sortOrder: 'ASC', createdAt: 'ASC' },
+            order: { sortOrder: "ASC", createdAt: "ASC" },
         });
     }
     async getPrefilled(sessionId) {
         const session = await this.sessionRepo.findOne({
             where: { id: sessionId },
-            relations: ['program', 'program.days', 'program.days.exercises'],
+            relations: ["program", "program.days", "program.days.exercises"],
         });
         if (!session?.program)
             return [];
         const prefilled = [];
-        for (const day of session.program.days) {
-            for (const ex of day.exercises) {
+        for (const day of session.program.days.sort((a, b) => a.dayOrder - b.dayOrder)) {
+            for (const ex of day.exercises.sort((a, b) => a.sortOrder - b.sortOrder)) {
                 prefilled.push({
                     dayTitle: day.title,
                     exerciseName: ex.exerciseName,
                     weight: ex.defaultWeight || 0,
                     sets: ex.defaultSets || 1,
                     reps: ex.defaultReps || 10,
-                    volumeKg: (ex.defaultWeight || 0) * (ex.defaultSets || 1) * (ex.defaultReps || 10),
+                    volumeKg: (ex.defaultWeight || 0) *
+                        (ex.defaultSets || 1) *
+                        (ex.defaultReps || 10),
                     rir: ex.defaultRir,
                     rpe: ex.defaultRpe,
                     notes: ex.notes,
@@ -57,12 +60,39 @@ let WorkoutLogsService = class WorkoutLogsService {
         }
         return prefilled;
     }
+    async getPrefilledFromDay(dayId) {
+        const day = await this.dayRepo.findOne({
+            where: { id: dayId },
+            relations: ["exercises"],
+        });
+        if (!day)
+            throw new common_1.NotFoundException("Program day not found");
+        return day.exercises
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((ex) => ({
+            dayTitle: day.title,
+            exerciseName: ex.exerciseName,
+            weight: ex.defaultWeight || 0,
+            sets: ex.defaultSets || 1,
+            reps: ex.defaultReps || 10,
+            volumeKg: (ex.defaultWeight || 0) *
+                (ex.defaultSets || 1) *
+                (ex.defaultReps || 10),
+            rir: ex.defaultRir,
+            rpe: ex.defaultRpe,
+            notes: ex.notes,
+            sortOrder: ex.sortOrder,
+        }));
+    }
     async saveLog(sessionId, dto) {
         const volumeKg = dto.weight * dto.sets * dto.reps;
         const log = this.logRepo.create({ ...dto, sessionId, volumeKg });
         return this.logRepo.save(log);
     }
     async saveBulk(sessionId, dtos) {
+        await this.logRepo.delete({ sessionId });
+        if (!dtos.length)
+            return [];
         const logs = dtos.map((dto, i) => this.logRepo.create({
             ...dto,
             sessionId,
@@ -85,14 +115,14 @@ let WorkoutLogsService = class WorkoutLogsService {
     }
     async getMemberHistory(memberId, exerciseName) {
         const qb = this.logRepo
-            .createQueryBuilder('l')
-            .leftJoin('l.session', 's')
-            .where('s.memberId = :memberId', { memberId })
-            .andWhere('s.status = :status', { status: 'completed' })
-            .orderBy('s.startedAt', 'DESC')
+            .createQueryBuilder("l")
+            .leftJoin("l.session", "s")
+            .where("s.memberId = :memberId", { memberId })
+            .andWhere("s.status = :status", { status: "completed" })
+            .orderBy("s.startedAt", "DESC")
             .take(100);
         if (exerciseName)
-            qb.andWhere('l.exerciseName ILIKE :name', { name: `%${exerciseName}%` });
+            qb.andWhere("l.exerciseName ILIKE :name", { name: `%${exerciseName}%` });
         return qb.getMany();
     }
 };
@@ -102,7 +132,9 @@ exports.WorkoutLogsService = WorkoutLogsService = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(workout_log_entity_1.WorkoutLog)),
     __param(1, (0, typeorm_1.InjectRepository)(session_entity_1.Session)),
     __param(2, (0, typeorm_1.InjectRepository)(program_entity_1.ProgramDay)),
+    __param(3, (0, typeorm_1.InjectRepository)(program_entity_1.Program)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository])
 ], WorkoutLogsService);

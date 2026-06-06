@@ -10,7 +10,7 @@ export interface ProgramDay { id: string; programId: string; title: string; dayO
 export interface Program { id: string; memberId: string; name: string; description?: string; isActive: boolean; days: ProgramDay[]; createdAt: string; }
 export interface WorkoutLog { id: string; sessionId: string; dayTitle?: string; exerciseName: string; weight: number; sets: number; reps: number; volumeKg: number; rir?: number; rpe?: number; notes?: string; sortOrder: number; }
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'heavy' | 'very_heavy';
-export interface NutritionPlan { id: string; memberId: string; activityLevel: ActivityLevel; bmr: number; tdee: number; targetCalories: number; proteinG: number; fatG: number; carbG: number; calorieGoal?: number; isActive: boolean; notes?: string; dailyLogs?: DailyCalorieLog[]; }
+export interface NutritionPlan { id: string; memberId: string; activityLevel: ActivityLevel; lbm?: number; bmr: number; tdee: number; targetCalories: number; proteinG: number; fatG: number; carbG: number; calorieGoal?: number; isActive: boolean; notes?: string; dailyLogs?: DailyCalorieLog[]; }
 export interface DailyCalorieLog { id: string; nutritionPlanId: string; logDate: string; caloriesConsumed: number; proteinG: number; fatG: number; carbG: number; notes?: string; }
 export interface CalcResult { bmr: number; tdee: number; targetCalories: number; proteinG: number; fatG: number; carbG: number; }
 export type CalendarData = Record<string, Session[]>;

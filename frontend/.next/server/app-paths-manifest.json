@@ -1,9 +1,11 @@
 {
   "/login/page": "app/login/page.js",
-  "/admin/members/page": "app/admin/members/page.js",
-  "/admin/calendar/page": "app/admin/calendar/page.js",
-  "/admin/members/[id]/page": "app/admin/members/[id]/page.js",
   "/admin/page": "app/admin/page.js",
+  "/admin/sessions/page": "app/admin/sessions/page.js",
   "/admin/programs/page": "app/admin/programs/page.js",
-  "/admin/programs/[id]/page": "app/admin/programs/[id]/page.js"
+  "/admin/programs/[id]/page": "app/admin/programs/[id]/page.js",
+  "/admin/members/page": "app/admin/members/page.js",
+  "/admin/nutrition/page": "app/admin/nutrition/page.js",
+  "/admin/members/[id]/page": "app/admin/members/[id]/page.js",
+  "/admin/calendar/page": "app/admin/calendar/page.js"
 }

@@ -9,19 +9,45 @@ export class NutritionController {
   constructor(private readonly s: NutritionService) {}
 
   @Post('calculate')
-  @Roles('admin')
-  calculate(@Body() body: { memberId: string; activityLevel: ActivityLevel; calorieGoal?: number }) {
-    return this.s.calculateForMember(body.memberId, body.activityLevel, body.calorieGoal);
+  calculate(@Body() body: {
+    memberId: string;
+    activityLevel: ActivityLevel;
+    calorieGoal?: number;
+    macroMode?: 'lbm' | 'ratio';
+    macroRatios?: { proteinPct: number; fatPct: number; carbPct: number };
+  }) {
+    return this.s.calculateForMember(
+      body.memberId,
+      body.activityLevel,
+      body.calorieGoal,
+      body.macroMode || 'lbm',
+      body.macroRatios,
+    );
   }
 
   @Post('plans')
-  @Roles('admin')
-  createPlan(@Body() body: { memberId: string; activityLevel: ActivityLevel; calorieGoal?: number; notes?: string }) {
-    return this.s.createPlan(body.memberId, body.activityLevel, body.calorieGoal, body.notes);
+  createPlan(@Body() body: {
+    memberId: string;
+    activityLevel: ActivityLevel;
+    calorieGoal?: number;
+    notes?: string;
+    macroMode?: 'lbm' | 'ratio';
+    macroRatios?: { proteinPct: number; fatPct: number; carbPct: number };
+  }) {
+    return this.s.createPlan(
+      body.memberId,
+      body.activityLevel,
+      body.calorieGoal,
+      body.notes,
+      body.macroMode || 'lbm',
+      body.macroRatios,
+    );
   }
 
   @Get('plans/member/:memberId')
-  getActivePlan(@Param('memberId') memberId: string) { return this.s.getActivePlan(memberId); }
+  getActivePlan(@Param('memberId') memberId: string) {
+    return this.s.getActivePlan(memberId);
+  }
 
   @Get('chart/:memberId')
   getChart(@Param('memberId') memberId: string, @Query('days') days?: string) {
@@ -29,7 +55,6 @@ export class NutritionController {
   }
 
   @Post('plans/:planId/logs')
-  @Roles('admin')
   upsertLog(@Param('planId') planId: string, @Body() body: any) {
     return this.s.upsertDailyLog(planId, body.logDate, body);
   }

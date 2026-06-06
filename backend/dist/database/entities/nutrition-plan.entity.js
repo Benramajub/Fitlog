@@ -45,6 +45,10 @@ __decorate([
     __metadata("design:type", String)
 ], NutritionPlan.prototype, "activityLevel", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'decimal', precision: 6, scale: 2, nullable: true }),
+    __metadata("design:type", Number)
+], NutritionPlan.prototype, "lbm", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'decimal', precision: 7, scale: 2 }),
     __metadata("design:type", Number)
 ], NutritionPlan.prototype, "bmr", void 0);

@@ -21,12 +21,14 @@ let NutritionController = class NutritionController {
         this.s = s;
     }
     calculate(body) {
-        return this.s.calculateForMember(body.memberId, body.activityLevel, body.calorieGoal);
+        return this.s.calculateForMember(body.memberId, body.activityLevel, body.calorieGoal, body.macroMode || 'lbm', body.macroRatios);
     }
     createPlan(body) {
-        return this.s.createPlan(body.memberId, body.activityLevel, body.calorieGoal, body.notes);
+        return this.s.createPlan(body.memberId, body.activityLevel, body.calorieGoal, body.notes, body.macroMode || 'lbm', body.macroRatios);
     }
-    getActivePlan(memberId) { return this.s.getActivePlan(memberId); }
+    getActivePlan(memberId) {
+        return this.s.getActivePlan(memberId);
+    }
     getChart(memberId, days) {
         return this.s.getCalorieChart(memberId, days ? +days : 30);
     }
@@ -40,7 +42,6 @@ let NutritionController = class NutritionController {
 exports.NutritionController = NutritionController;
 __decorate([
     (0, common_1.Post)('calculate'),
-    (0, auth_guard_1.Roles)('admin'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -48,7 +49,6 @@ __decorate([
 ], NutritionController.prototype, "calculate", null);
 __decorate([
     (0, common_1.Post)('plans'),
-    (0, auth_guard_1.Roles)('admin'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -71,7 +71,6 @@ __decorate([
 ], NutritionController.prototype, "getChart", null);
 __decorate([
     (0, common_1.Post)('plans/:planId/logs'),
-    (0, auth_guard_1.Roles)('admin'),
     __param(0, (0, common_1.Param)('planId')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),

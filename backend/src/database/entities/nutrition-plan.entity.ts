@@ -31,8 +31,11 @@ export class NutritionPlan extends BaseEntity {
   activityLevel: ActivityLevel;
 
   // Calculated values (stored for history)
+  @Column({ type: 'decimal', precision: 6, scale: 2, nullable: true })
+  lbm: number; // Lean Body Mass (kg) — Boer Formula
+
   @Column({ type: 'decimal', precision: 7, scale: 2 })
-  bmr: number;
+  bmr: number; // Katch-McArdle BMR from LBM
 
   @Column({ type: 'decimal', precision: 7, scale: 2 })
   tdee: number;

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import dayjs from 'dayjs'
+import dayjs from 'dayjs';
 import { NutritionPlan, DailyCalorieLog, ActivityLevel, ACTIVITY_MULTIPLIER } from '../database/entities/nutrition-plan.entity';
 import { Member } from '../database/entities/member.entity';
 import { Gender } from '../database/entities/member.entity';
@@ -15,46 +15,107 @@ export class NutritionService {
   ) {}
 
   // ─── Core calculation ───────────────────────────────────────────
-  calculateBMR(weight: number, height: number, age: number, gender: Gender): number {
+
+  /**
+   * Lean Body Mass (Boer Formula)
+   * ชาย:  LBM = (0.407 × weight) + (0.267 × height) − 19.2
+   * หญิง: LBM = (0.252 × weight) + (0.473 × height) − 48.3
+   * weight: kg, height: cm → LBM: kg
+   */
+  calculateLBM(weight: number, height: number, gender: Gender): number {
     if (gender === Gender.MALE) {
-      return 66 + 13.7 * weight + 5 * height - 6.8 * age;
+      return 0.407 * weight + 0.267 * height - 19.2;
     }
-    return 665 + 9.6 * weight + 1.8 * height - 4.7 * age;
+    return 0.252 * weight + 0.473 * height - 48.3;
+  }
+
+  /**
+   * BMR จาก Lean Body Mass (Katch-McArdle Formula)
+   * BMR = 370 + (21.6 × LBM)
+   * แม่นยำกว่า Harris-Benedict เพราะไม่ขึ้นกับ gender โดยตรง
+   */
+  calculateBMR(weight: number, height: number, age: number, gender: Gender): number {
+    const lbm = this.calculateLBM(weight, height, gender);
+    return 370 + 21.6 * lbm;
   }
 
   calculateTDEE(bmr: number, activity: ActivityLevel): number {
     return bmr * ACTIVITY_MULTIPLIER[activity];
   }
 
-  calculateMacros(weight: number, tdee: number) {
-    const protein = weight * 1.6; // g  (protein = weight * 1.6)
-    const fat = (tdee * 0.25) / 9; // g  (25% calories / 9 kcal per g)
-    const proteinCal = protein * 4;
-    const fatCal = fat * 9;
-    const carbCal = tdee - proteinCal - fatCal;
-    const carb = carbCal / 4; // g
+  /**
+   * Macro ratio mode:
+   *  'lbm'   — โปรตีน = LBM×1.6, ไขมัน = 25% tdee, คาร์บ = ที่เหลือ (default)
+   *  'ratio' — คำนวณจาก % ที่กำหนด (proteinPct + fatPct + carbPct = 100)
+   */
+  calculateMacros(
+    lbm: number,
+    tdee: number,
+    mode: 'lbm' | 'ratio' = 'lbm',
+    ratios?: { proteinPct: number; fatPct: number; carbPct: number },
+  ) {
+    let protein: number, fat: number, carb: number;
+
+    if (mode === 'ratio' && ratios) {
+      protein = (tdee * (ratios.proteinPct / 100)) / 4;
+      fat     = (tdee * (ratios.fatPct / 100)) / 9;
+      carb    = (tdee * (ratios.carbPct / 100)) / 4;
+    } else {
+      // Default: LBM-based protein, 25% fat, remaining carb
+      protein = lbm * 1.6;
+      fat     = (tdee * 0.25) / 9;
+      carb    = (tdee - protein * 4 - fat * 9) / 4;
+    }
+
     return {
       proteinG: Math.round(protein * 10) / 10,
-      fatG: Math.round(fat * 10) / 10,
-      carbG: Math.round(carb * 10) / 10,
+      fatG:     Math.round(fat * 10) / 10,
+      carbG:    Math.round(Math.max(0, carb) * 10) / 10,
     };
   }
 
   // ─── Plan CRUD ──────────────────────────────────────────────────
-  async calculateForMember(memberId: string, activityLevel: ActivityLevel, calorieGoal?: number) {
+  async calculateForMember(
+    memberId: string,
+    activityLevel: ActivityLevel,
+    calorieGoal?: number,
+    macroMode: 'lbm' | 'ratio' = 'lbm',
+    macroRatios?: { proteinPct: number; fatPct: number; carbPct: number },
+  ) {
     const member = await this.memberRepo.findOne({ where: { id: memberId } });
     if (!member) throw new NotFoundException('Member not found');
 
-    const bmr = this.calculateBMR(+member.weight, +member.height, member.age, member.gender);
+    const lbm  = this.calculateLBM(+member.weight, +member.height, member.gender);
+    const bmr  = this.calculateBMR(+member.weight, +member.height, member.age, member.gender);
     const tdee = this.calculateTDEE(bmr, activityLevel);
     const targetCalories = calorieGoal || tdee;
-    const macros = this.calculateMacros(+member.weight, targetCalories);
+    const macros = this.calculateMacros(lbm, targetCalories, macroMode, macroRatios);
 
-    return { bmr: Math.round(bmr), tdee: Math.round(tdee), targetCalories: Math.round(targetCalories), ...macros };
+    // Calc effective % from result (for display)
+    const proteinPct = Math.round((macros.proteinG * 4 / targetCalories) * 100);
+    const fatPct     = Math.round((macros.fatG * 9 / targetCalories) * 100);
+    const carbPct    = Math.round((macros.carbG * 4 / targetCalories) * 100);
+
+    return {
+      lbm:            Math.round(lbm * 10) / 10,
+      bmr:            Math.round(bmr),
+      tdee:           Math.round(tdee),
+      targetCalories: Math.round(targetCalories),
+      macroMode,
+      ...macros,
+      proteinPct, fatPct, carbPct,
+    };
   }
 
-  async createPlan(memberId: string, activityLevel: ActivityLevel, calorieGoal?: number, notes?: string) {
-    const calc = await this.calculateForMember(memberId, activityLevel, calorieGoal);
+  async createPlan(
+    memberId: string,
+    activityLevel: ActivityLevel,
+    calorieGoal?: number,
+    notes?: string,
+    macroMode: 'lbm' | 'ratio' = 'lbm',
+    macroRatios?: { proteinPct: number; fatPct: number; carbPct: number },
+  ) {
+    const calc = await this.calculateForMember(memberId, activityLevel, calorieGoal, macroMode, macroRatios);
 
     // Deactivate previous plans
     await this.planRepo.update({ memberId, isActive: true }, { isActive: false });
@@ -62,12 +123,13 @@ export class NutritionService {
     const plan = this.planRepo.create({
       memberId,
       activityLevel,
-      bmr: calc.bmr,
-      tdee: calc.tdee,
+      lbm:            calc.lbm,
+      bmr:            calc.bmr,
+      tdee:           calc.tdee,
       targetCalories: calc.targetCalories,
-      proteinG: calc.proteinG,
-      fatG: calc.fatG,
-      carbG: calc.carbG,
+      proteinG:       calc.proteinG,
+      fatG:           calc.fatG,
+      carbG:          calc.carbG,
       calorieGoal,
       isActive: true,
       notes,

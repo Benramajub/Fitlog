@@ -29,44 +29,66 @@ let NutritionService = class NutritionService {
         this.logRepo = logRepo;
         this.memberRepo = memberRepo;
     }
-    calculateBMR(weight, height, age, gender) {
+    calculateLBM(weight, height, gender) {
         if (gender === member_entity_2.Gender.MALE) {
-            return 66 + 13.7 * weight + 5 * height - 6.8 * age;
+            return 0.407 * weight + 0.267 * height - 19.2;
         }
-        return 665 + 9.6 * weight + 1.8 * height - 4.7 * age;
+        return 0.252 * weight + 0.473 * height - 48.3;
+    }
+    calculateBMR(weight, height, age, gender) {
+        const lbm = this.calculateLBM(weight, height, gender);
+        return 370 + 21.6 * lbm;
     }
     calculateTDEE(bmr, activity) {
         return bmr * nutrition_plan_entity_1.ACTIVITY_MULTIPLIER[activity];
     }
-    calculateMacros(weight, tdee) {
-        const protein = weight * 1.6;
-        const fat = (tdee * 0.25) / 9;
-        const proteinCal = protein * 4;
-        const fatCal = fat * 9;
-        const carbCal = tdee - proteinCal - fatCal;
-        const carb = carbCal / 4;
+    calculateMacros(lbm, tdee, mode = 'lbm', ratios) {
+        let protein, fat, carb;
+        if (mode === 'ratio' && ratios) {
+            protein = (tdee * (ratios.proteinPct / 100)) / 4;
+            fat = (tdee * (ratios.fatPct / 100)) / 9;
+            carb = (tdee * (ratios.carbPct / 100)) / 4;
+        }
+        else {
+            protein = lbm * 1.6;
+            fat = (tdee * 0.25) / 9;
+            carb = (tdee - protein * 4 - fat * 9) / 4;
+        }
         return {
             proteinG: Math.round(protein * 10) / 10,
             fatG: Math.round(fat * 10) / 10,
-            carbG: Math.round(carb * 10) / 10,
+            carbG: Math.round(Math.max(0, carb) * 10) / 10,
         };
     }
-    async calculateForMember(memberId, activityLevel, calorieGoal) {
+    async calculateForMember(memberId, activityLevel, calorieGoal, macroMode = 'lbm', macroRatios) {
         const member = await this.memberRepo.findOne({ where: { id: memberId } });
         if (!member)
             throw new common_1.NotFoundException('Member not found');
+        const lbm = this.calculateLBM(+member.weight, +member.height, member.gender);
         const bmr = this.calculateBMR(+member.weight, +member.height, member.age, member.gender);
         const tdee = this.calculateTDEE(bmr, activityLevel);
         const targetCalories = calorieGoal || tdee;
-        const macros = this.calculateMacros(+member.weight, targetCalories);
-        return { bmr: Math.round(bmr), tdee: Math.round(tdee), targetCalories: Math.round(targetCalories), ...macros };
+        const macros = this.calculateMacros(lbm, targetCalories, macroMode, macroRatios);
+        const proteinPct = Math.round((macros.proteinG * 4 / targetCalories) * 100);
+        const fatPct = Math.round((macros.fatG * 9 / targetCalories) * 100);
+        const carbPct = Math.round((macros.carbG * 4 / targetCalories) * 100);
+        return {
+            lbm: Math.round(lbm * 10) / 10,
+            bmr: Math.round(bmr),
+            tdee: Math.round(tdee),
+            targetCalories: Math.round(targetCalories),
+            macroMode,
+            ...macros,
+            proteinPct, fatPct, carbPct,
+        };
     }
-    async createPlan(memberId, activityLevel, calorieGoal, notes) {
-        const calc = await this.calculateForMember(memberId, activityLevel, calorieGoal);
+    async createPlan(memberId, activityLevel, calorieGoal, notes, macroMode = 'lbm', macroRatios) {
+        const calc = await this.calculateForMember(memberId, activityLevel, calorieGoal, macroMode, macroRatios);
         await this.planRepo.update({ memberId, isActive: true }, { isActive: false });
         const plan = this.planRepo.create({
             memberId,
             activityLevel,
+            lbm: calc.lbm,
             bmr: calc.bmr,
             tdee: calc.tdee,
             targetCalories: calc.targetCalories,

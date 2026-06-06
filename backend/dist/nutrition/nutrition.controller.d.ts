@@ -7,19 +7,36 @@ export declare class NutritionController {
         memberId: string;
         activityLevel: ActivityLevel;
         calorieGoal?: number;
+        macroMode?: 'lbm' | 'ratio';
+        macroRatios?: {
+            proteinPct: number;
+            fatPct: number;
+            carbPct: number;
+        };
     }): Promise<{
+        proteinPct: number;
+        fatPct: number;
+        carbPct: number;
         proteinG: number;
         fatG: number;
         carbG: number;
+        lbm: number;
         bmr: number;
         tdee: number;
         targetCalories: number;
+        macroMode: "lbm" | "ratio";
     }>;
     createPlan(body: {
         memberId: string;
         activityLevel: ActivityLevel;
         calorieGoal?: number;
         notes?: string;
+        macroMode?: 'lbm' | 'ratio';
+        macroRatios?: {
+            proteinPct: number;
+            fatPct: number;
+            carbPct: number;
+        };
     }): Promise<import("../database/entities/nutrition-plan.entity").NutritionPlan>;
     getActivePlan(memberId: string): Promise<import("../database/entities/nutrition-plan.entity").NutritionPlan>;
     getChart(memberId: string, days?: string): Promise<{
